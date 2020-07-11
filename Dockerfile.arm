@@ -1,0 +1,33 @@
+FROM node:12-alpine3.11 as BUILD
+
+COPY . /opt/codimd  
+
+WORKDIR /opt/codimd 
+
+RUN apk add --no-cache curl fontconfig git python3 make gcc g++ bash \
+  && mkdir -p /usr/share \
+  && cd /usr/share \
+  && curl -L https://github.com/yangxuan8282/docker-image/releases/download/2.1.1/phantomjs-2.1.1-alpine-arm.tar.xz | tar xJ \
+  && ln -s /usr/share/phantomjs/phantomjs /usr/bin/phantomjs \
+  && phantomjs --version
+
+RUN npm install --production && npm install webpack && npm run build
+
+FROM node:10-alpine3.11 as RUNTIME
+
+WORKDIR /home/hackmd/app
+
+COPY --from=BUILD /opt/codimd/ . 
+
+RUN apk --no-cache add bash curl && curl -Lo /usr/local/bin/pcheck https://github.com/pulpo/portchecker/releases/download/v1.0.6/portchecker-linux-arm
+
+RUN cp ./deployments/docker-entrypoint.sh ./ && \
+    cp .sequelizerc.example .sequelizerc && \
+    rm -rf .git .gitignore .travis.yml .dockerignore .editorconfig .babelrc .mailmap .sequelizerc.example \
+    test docs contribute \
+    package-lock.json webpack.prod.js webpack.htmlexport.js webpack.dev.js webpack.common.js \
+    config.json.example README.md CONTRIBUTING.md AUTHORS 
+
+EXPOSE 3000
+ENTRYPOINT ["/home/hackmd/app/docker-entrypoint.sh"]
+
